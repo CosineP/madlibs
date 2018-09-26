@@ -1,0 +1,6 @@
+[submodule "llamapun"]
+	path = llamapun
+	url = https://github.com/KWARC/llamapun.git
+[submodule "rust-senna"]
+	path = rust-senna
+	url = git@github.com:jfschaefer/rust-senna.git

@@ -1,0 +1,13 @@
+[package]
+name = "madlibs"
+version = "0.1.0"
+authors = ["Luna <lucidlyluna@gmail.com>"]
+
+[dependencies]
+mammut = "0.11.0"
+nlp-annotations = "0.1.2"
+toml = "0.4.7"
+regex = "1.0.5"
+llamapun = { git = "https://github.com/KWARC/llamapun" }
+rust-senna = { git = "https://github.com/jfschaefer/rust-senna" }
+
