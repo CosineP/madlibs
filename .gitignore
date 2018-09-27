@@ -1,3 +1,9 @@
+# SECURITY
+credentials.toml
 
+# Runtime stuff
+status.toml
+
+# Rust stuff
 /target
 **/*.rs.bk
