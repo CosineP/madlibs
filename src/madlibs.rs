@@ -44,6 +44,73 @@ fn label_status(status: String) -> Template {
     labelled
 }
 
+// Modifies template in-line
+// Returns whether the template has been fully reduced
+pub fn reduce_template(template: &mut Template, status: String) -> bool {
+    let status = label_status(strip_html(status));
+    for loan_word in status {
+        // This looks unsafe, but because we exit as soon as we fuck with len
+        // This messiness had to happen because the borrow checker hates us
+        for (t_i, template_word) in template.iter_mut().enumerate() {
+            // A placeholder matches a word found
+            if template_word.is_placeholder && template_word.pos == loan_word.pos {
+                // We have found a match!
+                template_word.text = loan_word.text.clone();
+                template_word.is_placeholder = false;
+                // Merge the adjacent non-placeholder parts into one chunk
+                // The one ahead has to go first because indices will change
+                // if t_i+1 < template.len() && !template[t_i+1].is_placeholder {
+                //     match &template[t_i+1].text.clone() {
+                //         Some(append_text) => {
+                //             template[t_i].text.as_mut().unwrap()
+                //                 .push_str(&append_text.clone());
+                //         },
+                //         None => panic!("non-placeholder section had no next")
+                //     };
+                //     template.remove(t_i+1);
+                // }
+                // if t_i > 0 && !template[t_i-1].is_placeholder {
+                //     match template[t_i].text.clone() {
+                //         Some(append_text) => {
+                //             template[t_i-1].text.as_mut().unwrap()
+                //                 .push_str(&append_text.clone());
+                //         },
+                //         None => panic!("non-placeholder section had no next")
+                //     };
+                //     template.remove(t_i);
+                // }
+                // return template.len() == 1;
+            }
+        }
+    }
+    // Collapse adjacent non-placoholder chunks just created
+    let template: Template = template.iter().fold(Vec::new(), |mut plate, &token| {
+        let last_placeholder = match plate.last() {
+            Some(last) => last.is_placeholder,
+            None => false,
+        };
+        if !last_placeholder && !token.is_placeholder {
+            match token.text.clone() {
+                Some(token_text) => {
+                    plate.last_mut().map(|mut last| {
+                        last.text = last.text.clone().map(|last_text| {
+                            // last_text.push_str(&token_text)
+                            format!("{}{}", last_text, token_text)
+                        });
+                        last
+                    });
+                },
+                None => panic!("token had no text despite not being placeholder")
+            }
+        } else {
+            plate.push(token);
+        }
+        plate
+    });
+    println!("{}", template.len());
+    return template.len() == 1;
+}
+
 fn str_to_pos(name: &str) -> POS {
     match name.as_ref() {
         "adjective" => POS::JJ,
