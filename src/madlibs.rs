@@ -17,6 +17,10 @@ pub struct Token {
 pub type Template = Vec<Token>;
 
 fn strip_html(status: String) -> String {
+    let newlines = Regex::new(r"</p>").unwrap();
+    let status = newlines.replace_all(&status, "\n\n").to_string();
+    let atmadlibs = Regex::new(r"@<?\w*>?madlibs@?\w*").unwrap();
+    let status = atmadlibs.replace_all(&status, "").to_string();
     let re = Regex::new(r"<[^<]*>").unwrap();
     re.replace_all(&status, " ").to_string()
 }

@@ -33,7 +33,7 @@ fn process_mention(mastodon: Mastodon, notification: notification::Notification)
         }
         match madlibs::reduce_template(&mut template, status.content) {
             Some(mut text) => {
-                let end = format!("\n\ncc @{}", notification.account.acct);
+                let end = format!("cc @{}", notification.account.acct);
                 text.push_str(&end);
                 mastodon.new_status(StatusBuilder {
                     status: text,
