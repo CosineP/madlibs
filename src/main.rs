@@ -4,29 +4,28 @@ extern crate elefren;
 
 use std::fs::File;
 
-use elefren::{Data, Mastodon, MastodonClient, Registration};
+use elefren::{Mastodon, MastodonClient, Registration};
 use elefren::helpers::cli;
 use elefren::helpers::toml;
 use elefren::entities::*;
 
 mod madlibs;
 
-// Modifies template in-line
-// Returns whether the template has been fully reduced
-fn reduce_template(template: &madlibs::Template, status: status::Status) -> bool {
-    true
-}
-
 fn process_mention(mastodon: Mastodon, mention: status::Status) {
     let text = mention.content;
     let mut template = madlibs::to_template(text);
     let home = mastodon.get_home_timeline().expect("couldn't fetch home timeline");
     for status in home.items_iter() {
-        if reduce_template(&template, status) {
+        if madlibs::reduce_template(&mut template, status.content) {
             break;
         }
     }
-    println!("{}", "doot");
+    // At this point template has been reduced to a single entity with all text
+    let madlibbed = match template[0].text.clone() {
+        Some(text) => text,
+        None => panic!("madlib didn't yield anything"),
+    };
+    println!("{}", madlibbed);
 }
 
 fn process_follow(mastodon: Mastodon, account: account::Account) {
