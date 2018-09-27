@@ -6,8 +6,8 @@ use madlibs::senna::senna::*;
 
 use madlibs::regex::Regex;
 
-struct Token {
-    text: Option<String>,
+pub struct Token {
+    pub text: Option<String>,
     is_placeholder: bool,
     pos: Option<POS>,
 }
@@ -67,7 +67,7 @@ fn str_to_pos(name: &str) -> POS {
     }
 }
 
-fn to_template(status: String) -> Template {
+pub fn to_template(status: String) -> Template {
     let status = strip_html(status);
 
     const OPEN: char = '[';
