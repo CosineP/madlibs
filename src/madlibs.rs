@@ -1,10 +1,12 @@
 extern crate senna;
 extern crate regex;
+extern crate rand;
 
 use madlibs::senna::pos::POS;
 use madlibs::senna::senna::*;
 
 use madlibs::regex::Regex;
+use madlibs::rand::Rng;
 
 pub struct Token {
     pub text: Option<String>,
@@ -60,7 +62,10 @@ fn check_done(template: &Template) -> bool {
 // Only fills in one word, exits immediately
 // (i.e. it's made for one word per status)
 pub fn reduce_template(template: &mut Template, status: String) -> Option<String> {
-    let status = label_status(strip_html(status));
+    let mut status = label_status(strip_html(status));
+    // Don't just take the first one, because that tends to be boring
+    let mut rng = rand::thread_rng();
+    rng.shuffle(&mut status);
     for loan_word in status {
         // This looks unsafe, but because we exit as soon as we fuck with len
         // This messiness had to happen because the borrow checker hates us
