@@ -77,7 +77,7 @@ fn poll_loop(mastodon: Mastodon) {
     };
 
     loop {
-        println!("checking...........");
+        println!("checking after {} seconds", sleep_time);
         let notis = mastodon.notifications().expect("couldn't fetch notis");
         let mut last_noti_date_temp = bot_status.last_noti_date;
         for noti in notis.initial_items {
@@ -92,7 +92,7 @@ fn poll_loop(mastodon: Mastodon) {
             }
             // If we found something, our sleep was too long
             // Divide by two, don't go below 1
-            sleep_time = std::cmp::max(sleep_time / 2, 1);
+            sleep_time = std::cmp::max(sleep_time / 4, 1);
 
             match noti.notification_type {
                 notification::NotificationType::Mention => process_mention(mastodon.clone(), noti),
