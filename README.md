@@ -13,8 +13,9 @@ what does a template look like? it pretty much just looks like this:
 
     [pronoun] was a [noun], [pronoun] was a [noun], can i be aaaanymore [adjective]~
 
-get the idea? a full doc is on its way. anyway, mention `@madlibs@beeping.town`
-with a template and it'll do madlibs for you!
+there is a [full doc](doc/lang-reference.md) that includes all correct POS
+labels. anyway, mention `@madlibs@beeping.town` with a template and it'll do
+madlibs for you!
 
 i meant about the code
 ----------------------
