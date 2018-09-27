@@ -9,7 +9,7 @@ be replaced, like an underline in madlibs. here are the words you can use at
 this time:
 
 | word        | example |
--------------------------
+| ----------- | ------- |
 | adjective   | slimy   |
 | comparative | warmer  |
 | superlative | coolest |
