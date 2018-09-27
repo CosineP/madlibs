@@ -461,11 +461,14 @@ dependencies = [
 name = "madlibs"
 version = "0.1.0"
 dependencies = [
+ "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "elefren 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "llamapun 0.2.0 (git+https://github.com/KWARC/llamapun)",
  "nlp-annotations 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust-senna 0.0.1 (git+https://github.com/jfschaefer/rust-senna.git)",
+ "serde 1.0.79 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.79 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
