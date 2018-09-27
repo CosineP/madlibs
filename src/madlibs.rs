@@ -1,14 +1,12 @@
 extern crate senna;
 extern crate regex;
 
-
-
 use madlibs::senna::pos::POS;
 use madlibs::senna::senna::*;
 
 use madlibs::regex::Regex;
 
-pub struct Token {
+struct Token {
     text: Option<String>,
     is_placeholder: bool,
     pos: Option<POS>,
@@ -46,7 +44,7 @@ fn label_status(status: String) -> Template {
     labelled
 }
 
-pub fn str_to_pos(name: &str) -> POS {
+fn str_to_pos(name: &str) -> POS {
     match name.as_ref() {
         "adjective" => POS::JJ,
         "comparative" => POS::JJR,
@@ -69,7 +67,7 @@ pub fn str_to_pos(name: &str) -> POS {
     }
 }
 
-pub fn to_template(status: String) -> Template {
+fn to_template(status: String) -> Template {
     let status = strip_html(status);
 
     const OPEN: char = '[';

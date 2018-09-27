@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Luna <lucidlyluna@gmail.com>"]
 
 [dependencies]
-mammut = "0.11.0"
+elefren = { version = "0.15.2", features = ["toml"] }
 nlp-annotations = "0.1.2"
 toml = "0.4.7"
 regex = "1.0.5"
