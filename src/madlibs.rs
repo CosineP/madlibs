@@ -22,7 +22,7 @@ fn strip_html(status: String) -> String {
     let atmadlibs = Regex::new(r"@<?\w*>?madlibs@?\w*").unwrap();
     let status = atmadlibs.replace_all(&status, "").to_string();
     let re = Regex::new(r"<[^<]*>").unwrap();
-    re.replace_all(&status, " ").to_string()
+    re.replace_all(&status, "").to_string()
 }
 
 // Though it returns a template, it's not a template because it's all placeholders, it's actually
