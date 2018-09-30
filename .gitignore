@@ -2,7 +2,7 @@
 credentials.toml
 
 # Runtime stuff
-status.toml
+status.bincode
 
 # Rust stuff
 /target

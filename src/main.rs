@@ -3,6 +3,10 @@
 extern crate elefren;
 extern crate chrono;
 extern crate toml;
+// Yes, it is worth it for both. TOML doesn't support Vec<Template>,
+// and elefren doesn't support anything but TOML
+// TODO: I could technically just serialize the credentials to bincode as well
+extern crate bincode;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -17,7 +21,6 @@ use elefren::helpers;
 use elefren::entities::*;
 
 use std::fs::File;
-use std::io::prelude::*;
 
 #[derive(Deserialize, Serialize)]
 struct BotStatus {
@@ -71,11 +74,9 @@ fn sleep(secs: u64) {
 fn poll_loop(mastodon: Mastodon) {
     let sleep_time = 60; // in seconds
 
-    let mut bot_status = match File::open("status.toml") {
+    let mut bot_status = match File::open("status.bincode") {
         Ok(mut file) => {
-            let mut string = String::new();
-            file.read_to_string(&mut string).unwrap();
-            toml::from_str(&string).unwrap()
+            bincode::deserialize_from(file).unwrap()
         },
         Err(_) => BotStatus {
             // WARNING: Don't use this bot in the past
@@ -109,11 +110,10 @@ fn poll_loop(mastodon: Mastodon) {
         // Now that we've finished our search, we can update our bot status
         bot_status.last_noti_date = last_noti_date_temp;
         // Serialize the bot status occasionally
-        match File::create("status.toml") {
-            Ok(mut file) => {
-                let serialized = toml::to_string(&bot_status).unwrap();
-                file.write_all(serialized.as_bytes())
-                    .expect("couldn't write to status file");
+        match File::create("status.bincode") {
+            Ok(file) => {
+                bincode::serialize_into(file, &bot_status)
+                    .expect("couldn't serialize to file")
             },
             Err(_) => panic!("couldn't create/open status file")
         };
