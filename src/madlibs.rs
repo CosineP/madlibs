@@ -61,6 +61,8 @@ mod opt_external_struct {
 pub type Template = Vec<Token>;
 
 fn strip_html(status: String) -> String {
+    let single_lines = Regex::new(r"<br ?/?>").unwrap();
+    let status = single_lines.replace_all(&status, "\n").to_string();
     let newlines = Regex::new(r"</p>").unwrap();
     let status = newlines.replace_all(&status, "\n\n").to_string();
     let atmadlibs = Regex::new(r"@<?\w*>?madlibs@?\w*").unwrap();

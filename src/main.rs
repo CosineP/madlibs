@@ -122,7 +122,7 @@ fn poll_loop(mastodon: Mastodon) {
 }
 
 fn main() {
-    simple_logger::init().unwrap();
+    simple_logger::init_with_level(log::Level::Info).unwrap();
     let mastodon = match helpers::toml::from_file("credentials.toml") {
         Ok(data) => {
             Mastodon::from(data)
