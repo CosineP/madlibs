@@ -60,7 +60,7 @@ fn sleep(secs: u64) {
 }
 
 fn poll_loop(mastodon: Mastodon) {
-    let mut sleep_time = 1; // in seconds
+    let sleep_time = 60; // in seconds
 
     let mut bot_status = match File::open("status.toml") {
         Ok(mut file) => {
@@ -77,7 +77,7 @@ fn poll_loop(mastodon: Mastodon) {
     };
 
     loop {
-        println!("checking after {} seconds", sleep_time);
+        println!("checking.......");
         let notis = mastodon.notifications().expect("couldn't fetch notis");
         let mut last_noti_date_temp = bot_status.last_noti_date;
         for noti in notis.initial_items {
@@ -90,9 +90,6 @@ fn poll_loop(mastodon: Mastodon) {
             if noti.created_at > last_noti_date_temp {
                 last_noti_date_temp = noti.created_at;
             }
-            // If we found something, our sleep was too long
-            // Divide by two, don't go below 1
-            sleep_time = std::cmp::max(sleep_time / 4, 1);
 
             match noti.notification_type {
                 notification::NotificationType::Mention => process_mention(mastodon.clone(), noti),
@@ -100,8 +97,6 @@ fn poll_loop(mastodon: Mastodon) {
                 _ => (),
             };
         }
-        // We have run out of things. Our sleep time should increase
-        sleep_time *= 2;
         // Now that we've finished our search, we can update our bot status
         bot_status.last_noti_date = last_noti_date_temp;
         // Serialize the bot status occasionally
