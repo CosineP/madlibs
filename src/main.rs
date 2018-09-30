@@ -5,6 +5,9 @@ extern crate chrono;
 extern crate toml;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate log;
+extern crate simple_logger;
 
 use elefren::{Mastodon, MastodonClient, Registration, StatusBuilder};
 use elefren::helpers::cli;
@@ -23,6 +26,7 @@ struct BotStatus {
 }
 
 fn process_mention(mastodon: Mastodon, notification: notification::Notification) {
+    info!("mention from {}", notification.account.acct);
     let status = notification.status.unwrap();
     let text = status.content;
     let mut template = madlibs::to_template(text);
@@ -47,11 +51,12 @@ fn process_mention(mastodon: Mastodon, notification: notification::Notification)
 }
 
 fn process_follow(mastodon: Mastodon, account: account::Account) {
+    info!("followed by {}", account.acct);
     let result = mastodon
         .follow(account.id.parse().expect("id is invalid"));
     match result {
         Ok(_) => (),
-        Err(err) => println!("{}", err),
+        Err(err) => error!("{}", err),
     };
 }
 
@@ -77,7 +82,6 @@ fn poll_loop(mastodon: Mastodon) {
     };
 
     loop {
-        println!("checking.......");
         let notis = mastodon.notifications().expect("couldn't fetch notis");
         let mut last_noti_date_temp = bot_status.last_noti_date;
         for noti in notis.initial_items {
@@ -113,6 +117,7 @@ fn poll_loop(mastodon: Mastodon) {
 }
 
 fn main() {
+    simple_logger::init().unwrap();
     let mastodon = match helpers::toml::from_file("credentials.toml") {
         Ok(data) => {
             Mastodon::from(data)
