@@ -1,6 +1,9 @@
+// Deals with the madlibs logic: templates, POS, filling in, etc
+
 extern crate senna;
 extern crate regex;
 extern crate rand;
+extern crate serde;
 
 use madlibs::senna::pos::POS;
 use madlibs::senna::senna::*;
@@ -8,10 +11,51 @@ use madlibs::senna::senna::*;
 use madlibs::regex::Regex;
 use madlibs::rand::Rng;
 
+#[derive(Deserialize, Serialize)]
+#[serde(remote = "POS")]
+#[allow(non_camel_case_types)]
+// Unfortunately we have to redefine this entire enum or it errors with an
+// imparsible "non-exhaustive patters" error. Fortunately this probably doesn't
+// change too much so it's not THAT bad
+enum POSSerde {
+    NNP, COM, CD, NNS, JJ, MD, VB, DT, NN, IN, PUNCT, VBZ, VBG, CC, VBD, VBN,
+    RB, TO, PRP, RBR, WDT, VBP, RP, PRP_POSS, JJS, POS, QUOT_S, WP, QUOT_B, COL,
+    JJR, WRB, EX, DOL, NNPS, WP_POSS, LRB, RRB, PDT, RBS, FW, UH, SYM, LS,
+    POUND, PADDING, UNAVAILABLE, NOT_SET,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Token {
     pub text: Option<String>,
     is_placeholder: bool,
+    #[serde(default, with = "opt_external_struct")]
     pos: Option<POS>,
+}
+
+mod opt_external_struct {
+    use super::{POS, POSSerde};
+    use madlibs::serde::{Serialize, Serializer, Deserialize, Deserializer};
+
+    pub fn serialize<S>(value: &Option<POS>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        struct Helper<'a>(#[serde(with = "POSSerde")] &'a POS);
+
+        value.as_ref().map(Helper).serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<POS>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Helper(#[serde(with = "POSSerde")] POS);
+
+        let helper = Option::deserialize(deserializer)?;
+        Ok(helper.map(|Helper(external)| external))
+    }
 }
 
 pub type Template = Vec<Token>;

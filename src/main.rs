@@ -1,4 +1,4 @@
-// Mostly straight outta https://github.com/Aaronepower/Mammut README
+// Deals with the botty aspects: polling, sending, etc
 
 extern crate elefren;
 extern crate chrono;
@@ -9,6 +9,8 @@ extern crate serde_derive;
 extern crate log;
 extern crate simple_logger;
 
+mod madlibs;
+
 use elefren::{Mastodon, MastodonClient, Registration, StatusBuilder};
 use elefren::helpers::cli;
 use elefren::helpers;
@@ -17,19 +19,21 @@ use elefren::entities::*;
 use std::fs::File;
 use std::io::prelude::*;
 
-mod madlibs;
-
 #[derive(Deserialize, Serialize)]
 struct BotStatus {
     last_noti_date: chrono::DateTime<chrono::Utc>,
-    // known_templates: Vec<Template>, // TODO, when we start auto-posting
+    known_templates: Vec<madlibs::Template>,
 }
 
-fn process_mention(mastodon: Mastodon, notification: notification::Notification) {
+fn process_mention(
+        mastodon: Mastodon,
+        notification: notification::Notification,
+        add_template_to: &mut Vec<madlibs::Template>) {
     info!("mention from {}", notification.account.acct);
     let status = notification.status.unwrap();
     let text = status.content;
     let mut template = madlibs::to_template(text);
+    add_template_to.push(template.to_vec());
     let home = mastodon.get_home_timeline().expect("couldn't fetch home timeline");
     for status in home.items_iter() {
         if status.account.acct == "madlibs" || status.content.contains("madlibs") {
@@ -77,7 +81,8 @@ fn poll_loop(mastodon: Mastodon) {
             // WARNING: Don't use this bot in the past
             last_noti_date: chrono::DateTime::from_utc(
                                 chrono::naive::NaiveDateTime::from_timestamp(0, 0),
-                                chrono::Utc)
+                                chrono::Utc),
+            known_templates: vec![],
         }
     };
 
@@ -96,7 +101,7 @@ fn poll_loop(mastodon: Mastodon) {
             }
 
             match noti.notification_type {
-                notification::NotificationType::Mention => process_mention(mastodon.clone(), noti),
+                notification::NotificationType::Mention => process_mention(mastodon.clone(), noti, &mut bot_status.known_templates),
                 notification::NotificationType::Follow => process_follow(mastodon.clone(), noti.account),
                 _ => (),
             };
