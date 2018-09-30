@@ -7,7 +7,8 @@ tell me about this bot
 ----------------------
 
 here's what the bot does: you can @mention it with a template. it'll read the
-toots from all its followers and fill it in with words from their toots
+toots from all its followers and fill it in with words from their toots. it also
+posts a random template it's seen around twice a day
 
 what does a template look like? it pretty much just looks like this:
 
