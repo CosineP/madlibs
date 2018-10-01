@@ -30,7 +30,7 @@ struct BotStatus {
     known_templates: Vec<madlibs::Template>,
 }
 
-fn solve_and_post(mastodon: Mastodon, mut template: &mut madlibs::Template, acct: Option<String>) {
+fn solve_and_post(mastodon: &Mastodon, mut template: &mut madlibs::Template, acct: Option<String>) {
     let home = mastodon.get_home_timeline().expect("couldn't fetch home timeline");
     for status in home.items_iter() {
         if status.account.acct == "madlibs" || status.content.contains("madlibs") {
@@ -55,7 +55,7 @@ fn solve_and_post(mastodon: Mastodon, mut template: &mut madlibs::Template, acct
 }
 
 fn process_mention(
-        mastodon: Mastodon,
+        mastodon: &Mastodon,
         notification: notification::Notification,
         add_template_to: &mut Vec<madlibs::Template>) {
     info!("mention from {}", notification.account.acct);
@@ -66,13 +66,14 @@ fn process_mention(
     solve_and_post(mastodon, &mut template, Some(notification.account.acct));
 }
 
-fn post_random_madlib(mastodon: Mastodon, templates: &Vec<madlibs::Template>) {
+fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<madlibs::Template>) {
     info!("posting random template");
+    // Solve and post changes the template which we don't want, so we clone
     let mut template = rand::thread_rng().choose(templates).unwrap().clone();
     solve_and_post(mastodon, &mut template, None);
 }
 
-fn process_follow(mastodon: Mastodon, account: account::Account) {
+fn process_follow(mastodon: &Mastodon, account: account::Account) {
     info!("followed by {}", account.acct);
     let result = mastodon
         .follow(account.id.parse().expect("id is invalid"));
@@ -86,7 +87,7 @@ fn sleep(secs: u64) {
     std::thread::sleep(std::time::Duration::from_secs(secs));
 }
 
-fn poll_loop(mastodon: Mastodon) {
+fn poll_loop(mastodon: &Mastodon) {
     let sleep_time = 60; // in seconds
 
     let mut bot_status = match File::open("status.bincode") {
@@ -112,7 +113,7 @@ fn poll_loop(mastodon: Mastodon) {
         if now >= next_random {
             let next_hours = rng.gen_range(1, 24);
             next_random = now + chrono::Duration::hours(next_hours);
-            post_random_madlib(mastodon.clone(), &bot_status.known_templates);
+            post_random_madlib(&mastodon, &bot_status.known_templates);
         }
         let mut last_noti_date_temp = bot_status.last_noti_date;
         for noti in notis.initial_items {
@@ -127,8 +128,8 @@ fn poll_loop(mastodon: Mastodon) {
             }
 
             match noti.notification_type {
-                notification::NotificationType::Mention => process_mention(mastodon.clone(), noti, &mut bot_status.known_templates),
-                notification::NotificationType::Follow => process_follow(mastodon.clone(), noti.account),
+                notification::NotificationType::Mention => process_mention(&mastodon, noti, &mut bot_status.known_templates),
+                notification::NotificationType::Follow => process_follow(&mastodon, noti.account),
                 _ => (),
             };
         }
@@ -154,7 +155,7 @@ fn main() {
         }
         Err(_) => register(),
     };
-    poll_loop(mastodon);
+    poll_loop(&mastodon);
 }
 
 fn register() -> Mastodon {

@@ -97,8 +97,8 @@ fn label_status(status: String) -> Template {
 }
 
 fn collect(template: &Template) -> String {
-    template.iter().fold(String::new(), |mut s, token| {
-        s.push_str(&token.text.clone().unwrap()); s
+    template.iter().fold(String::new(), |s, token| {
+        format!("{}{}", s, token.text.as_ref().unwrap())
     })
 }
 
@@ -124,7 +124,7 @@ pub fn reduce_template(template: &mut Template, status: String) -> Option<String
             // A placeholder matches a word found
             if template_word.is_placeholder && template_word.pos == loan_word.pos {
                 // We have found a match!
-                template_word.text = loan_word.text.clone();
+                template_word.text = loan_word.text;
                 template_word.is_placeholder = false;
                 // We have to do it this way so the borrow in the for loop can end
                 done = true;
