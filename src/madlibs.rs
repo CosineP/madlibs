@@ -60,7 +60,7 @@ mod opt_external_struct {
 
 pub type Template = Vec<Token>;
 
-fn strip_html(status: String) -> String {
+fn strip_html(status: &str) -> String {
     let single_lines = Regex::new(r"<br ?/?>").unwrap();
     let status = single_lines.replace_all(&status, "\n").to_string();
     let newlines = Regex::new(r"</p>").unwrap();
@@ -73,7 +73,7 @@ fn strip_html(status: String) -> String {
 
 // Though it returns a template, it's not a template because it's all placeholders, it's actually
 // just a labelled status
-fn label_status(status: String) -> Template {
+fn label_status(status: &str) -> Template {
     let status = strip_html(status);
 
     let mut labelled = Template::new();
@@ -111,8 +111,8 @@ fn check_done(template: &Template) -> bool {
 // Returns either Some(fully reduced madlibs string) or None
 // Only fills in one word, exits immediately
 // (i.e. it's made for one word per status)
-pub fn reduce_template(template: &mut Template, status: String) -> Option<String> {
-    let mut status = label_status(strip_html(status));
+pub fn reduce_template(template: &mut Template, status: &str) -> Option<String> {
+    let mut status = label_status(&strip_html(&status));
     // Don't just take the first one, because that tends to be boring
     let mut rng = rand::thread_rng();
     rng.shuffle(&mut status);
@@ -137,7 +137,7 @@ pub fn reduce_template(template: &mut Template, status: String) -> Option<String
         }
     }
     match check_done(template) {
-        true => Some(collect(&template)),
+        true => Some(collect(template)),
         false => None,
     }
 }
@@ -165,7 +165,7 @@ fn str_to_pos(name: &str) -> POS {
     }
 }
 
-pub fn to_template(status: String) -> Template {
+pub fn to_template(status: &str) -> Template {
     let status = strip_html(status);
 
     const OPEN: char = '[';

@@ -36,7 +36,7 @@ fn solve_and_post(mastodon: &Mastodon, mut template: &mut madlibs::Template, acc
         if status.account.acct == "madlibs" || status.content.contains("madlibs") {
             continue;
         }
-        match madlibs::reduce_template(&mut template, status.content) {
+        match madlibs::reduce_template(&mut template, &status.content) {
             Some(mut text) => {
                 let end = match acct {
                     Some(acct) => format!("cc @{}", acct),
@@ -61,7 +61,7 @@ fn process_mention(
     info!("mention from {}", notification.account.acct);
     let status = notification.status.unwrap();
     let text = status.content;
-    let mut template = madlibs::to_template(text);
+    let mut template = madlibs::to_template(&text);
     add_template_to.push(template.to_vec());
     solve_and_post(mastodon, &mut template, Some(notification.account.acct));
 }
