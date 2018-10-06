@@ -87,11 +87,9 @@ fn sleep(secs: u64) {
     std::thread::sleep(std::time::Duration::from_secs(secs));
 }
 
-fn poll_loop(mastodon: &Mastodon) {
-    let sleep_time = 60; // in seconds
-
-    let mut bot_status = match File::open("status.bincode") {
-        Ok(mut file) => {
+fn get_status() -> BotStatus {
+    match File::open("status.bincode") {
+        Ok(file) => {
             bincode::deserialize_from(file).unwrap()
         },
         Err(_) => BotStatus {
@@ -101,19 +99,29 @@ fn poll_loop(mastodon: &Mastodon) {
                                 chrono::Utc),
             known_templates: vec![],
         }
-    };
+    }
+}
+
+fn poll_loop(mastodon: &Mastodon) {
+    let sleep_time = 60; // in seconds
+
+    let mut bot_status = get_status();
 
     let mut next_random = chrono::DateTime::from_utc(
                                 chrono::naive::NaiveDateTime::from_timestamp(0, 0),
                                 chrono::Utc);
     let mut rng = rand::thread_rng();
+    let mut first_time = true;
     loop {
         let notis = mastodon.notifications().expect("couldn't fetch notis");
         let now = chrono::Utc::now();
         if now >= next_random {
+            if !first_time {
+                post_random_madlib(&mastodon, &bot_status.known_templates);
+            }
             let next_hours = rng.gen_range(1, 24);
             next_random = now + chrono::Duration::hours(next_hours);
-            post_random_madlib(&mastodon, &bot_status.known_templates);
+            first_time = false;
         }
         let mut last_noti_date_temp = bot_status.last_noti_date;
         for noti in notis.initial_items {
