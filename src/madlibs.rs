@@ -32,6 +32,20 @@ pub struct Token {
     pos: Option<POS>,
 }
 
+impl std::fmt::Debug for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.is_placeholder {
+            if self.text == None {
+                write!(f, "{}", self.pos.unwrap().to_str())
+            } else {
+                write!(f, "{}[{}]", self.text.as_ref().unwrap(), self.pos.unwrap().to_str())
+            }
+        } else {
+            write!(f, "{}", self.text.as_ref().unwrap())
+        }
+    }
+}
+
 mod opt_external_struct {
     use super::{POS, POSSerde};
     use madlibs::serde::{Serialize, Serializer, Deserialize, Deserializer};
@@ -61,14 +75,23 @@ mod opt_external_struct {
 pub type Template = Vec<Token>;
 
 fn strip_html(status: &str) -> String {
-    let single_lines = Regex::new(r"<br ?/?>").unwrap();
-    let status = single_lines.replace_all(&status, "\n").to_string();
-    let newlines = Regex::new(r"</p>").unwrap();
-    let status = newlines.replace_all(&status, "\n\n").to_string();
-    let atmadlibs = Regex::new(r"@<?\w*>?madlibs@?\w*").unwrap();
-    let status = atmadlibs.replace_all(&status, "").to_string();
+    // Single line breaks are represented as <br>s, these must be preserved
+    let re = Regex::new(r"<br ?/?>").unwrap();
+    let status = re.replace_all(&status, "\n");
+    // Double newlines are *wrapped* in <p>s, making this a little hacky
+    let re = Regex::new(r"</p>").unwrap();
+    let status = re.replace_all(&status, "\n\n");
+    // Remove the @mention at our own account, this is not technically stripping html
+    let re = Regex::new(r"@<?\w*>?madlibs@?\w*").unwrap();
+    let status = re.replace_all(&status, "");
+    // Remove *anything else* in TRUE <> charaters, stripping html
     let re = Regex::new(r"<[^<]*>").unwrap();
-    re.replace_all(&status, "").to_string()
+    let status = re.replace_all(&status, "");
+    // Remove any apostrophes, because they fuck up rust-senna
+    let re = Regex::new(r"'").unwrap();
+    let status = re.replace_all(&status, "");
+    // Stringify so we can pass it back without reborrowing
+    status.to_string()
 }
 
 // Though it returns a template, it's not a template because it's all placeholders, it's actually
@@ -92,7 +115,6 @@ fn label_status(status: &str) -> Template {
         };
         labelled.push(token);
     }
-
     labelled
 }
 
