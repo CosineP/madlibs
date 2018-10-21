@@ -84,6 +84,9 @@ fn strip_html(status: &str) -> String {
     // Remove the @mention at our own account, this is not technically stripping html
     let re = Regex::new(r"@<?\w*>?madlibs@?\w*").unwrap();
     let status = re.replace_all(&status, "");
+    // Remove URLs that make https [plural] and // [noun]
+    let re = Regex::new(r"http\w+").unwrap();
+    let status = re.replace_all(&status, "");
     // Remove *anything else* in TRUE <> charaters, stripping html
     let re = Regex::new(r"<[^<]*>").unwrap();
     let status = re.replace_all(&status, "");
