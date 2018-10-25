@@ -18,6 +18,7 @@ regex = "1.0.5"
 rand = "0.5.5"
 simple_logger = "0.5.0"
 log = "0.4.5"
+stopwords = "0.1.0"
 llamapun = { git = "https://github.com/KWARC/llamapun" }
 rust-senna = { git = "https://github.com/jfschaefer/rust-senna" }
 

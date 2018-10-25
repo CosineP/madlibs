@@ -4,12 +4,15 @@ extern crate senna;
 extern crate regex;
 extern crate rand;
 extern crate serde;
+extern crate stopwords;
 
 use madlibs::senna::pos::POS;
 use madlibs::senna::senna::*;
+use madlibs::stopwords::Stopwords;
 
 use madlibs::regex::Regex;
 use madlibs::rand::Rng;
+use std::collections::HashSet;
 
 #[derive(Deserialize, Serialize)]
 #[serde(remote = "POS")]
@@ -74,33 +77,42 @@ mod opt_external_struct {
 
 pub type Template = Vec<Token>;
 
-fn strip_html(status: &str) -> String {
+fn sanitize_all(status: &str) -> String {
     // Single line breaks are represented as <br>s, these must be preserved
     let re = Regex::new(r"<br ?/?>").unwrap();
     let status = re.replace_all(&status, "\n");
     // Double newlines are *wrapped* in <p>s, making this a little hacky
     let re = Regex::new(r"</p>").unwrap();
     let status = re.replace_all(&status, "\n\n");
-    // Remove the @mention at our own account, this is not technically stripping html
-    let re = Regex::new(r"@<?\w*>?madlibs@?\w*").unwrap();
-    let status = re.replace_all(&status, "");
-    // Remove URLs that make https [plural] and // [noun]
-    let re = Regex::new(r"http\w+").unwrap();
-    let status = re.replace_all(&status, "");
     // Remove *anything else* in TRUE <> charaters, stripping html
     let re = Regex::new(r"<[^<]*>").unwrap();
+    let status = re.replace_all(&status, "");
+    status.to_string()
+}
+fn sanitize_source(status: &str) -> String {
+    let status = sanitize_all(status);
+    // Remove URLs that make https [plural] and // [noun]
+    let re = Regex::new(r"http\w+").unwrap();
     let status = re.replace_all(&status, "");
     // Remove any apostrophes, because they fuck up rust-senna
     let re = Regex::new(r"'").unwrap();
     let status = re.replace_all(&status, "");
-    // Stringify so we can pass it back without reborrowing
+    status.to_string()
+}
+fn sanitize_template(status: &str) -> String {
+    let status = sanitize_all(status);
+    // Remove the @mention at our own account
+    let re = Regex::new(r"@<?\w*>?madlibs@?\w*").unwrap();
+    let status = re.replace_all(&status, "");
     status.to_string()
 }
 
 // Though it returns a template, it's not a template because it's all placeholders, it's actually
 // just a labelled status
 fn label_status(status: &str) -> Template {
-    let status = strip_html(status);
+    let status = sanitize_source(status);
+
+    let stops: HashSet<_> = stopwords::Spark::stopwords(stopwords::Language::English).unwrap().iter().collect();
 
     let mut labelled = Template::new();
     // The data directory I just added from rust-senna submodule because I'm lazy
@@ -111,12 +123,14 @@ fn label_status(status: &str) -> Template {
     };
     let sen = senna.parse(&status, options);
     for word in sen.get_words() {
-        let token = Token {
-            text: Some(word.get_string().to_string()),
-            is_placeholder: true,
-            pos: Some(word.get_pos()),
-        };
-        labelled.push(token);
+        if !stops.contains(&word.get_string().clone()) {
+            let token = Token {
+                text: Some(word.get_string().to_string()),
+                is_placeholder: true,
+                pos: Some(word.get_pos()),
+            };
+            labelled.push(token);
+        }
     }
     labelled
 }
@@ -137,7 +151,7 @@ fn check_done(template: &Template) -> bool {
 // Only fills in one word, exits immediately
 // (i.e. it's made for one word per status)
 pub fn reduce_template(template: &mut Template, status: &str) -> Option<String> {
-    let mut status = label_status(&strip_html(&status));
+    let mut status = label_status(&sanitize_source(&status));
     // Don't just take the first one, because that tends to be boring
     let mut rng = rand::thread_rng();
     rng.shuffle(&mut status);
@@ -191,7 +205,7 @@ fn str_to_pos(name: &str) -> POS {
 }
 
 pub fn to_template(status: &str) -> Template {
-    let status = strip_html(status);
+    let status = sanitize_template(status);
 
     const OPEN: char = '[';
     const CLOSE: char = ']';
