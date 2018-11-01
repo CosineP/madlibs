@@ -6,12 +6,12 @@ extern crate rand;
 extern crate serde;
 extern crate stopwords;
 
-use madlibs::senna::pos::POS;
-use madlibs::senna::senna::*;
-use madlibs::stopwords::Stopwords;
+use self::senna::pos::POS;
+use self::senna::senna::*;
+use self::stopwords::Stopwords;
 
-use madlibs::regex::Regex;
-use madlibs::rand::Rng;
+use self::regex::Regex;
+use self::rand::Rng;
 use std::collections::HashSet;
 
 #[derive(Deserialize, Serialize)]
