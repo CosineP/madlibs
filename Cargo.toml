@@ -3,6 +3,14 @@ name = "madlibs"
 version = "0.1.0"
 authors = ["Luna <lucidlyluna@gmail.com>"]
 
+[[bin]]
+name = "madlibs"
+path = "src/main.rs"
+
+[[bin]]
+name = "cleanup"
+path = "src/cleanup.rs"
+
 [dependencies]
 elefren = { version = "0.15.2", features = ["toml"] }
 nlp-annotations = "0.1.2"

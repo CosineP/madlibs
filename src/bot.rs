@@ -20,9 +20,9 @@ use self::rand::Rng;
 use std::fs::File;
 
 #[derive(Deserialize, Serialize)]
-struct BotStatus {
-    last_noti_date: chrono::DateTime<chrono::Utc>,
-    known_templates: Vec<madlibs::Template>,
+pub struct BotStatus {
+    pub last_noti_date: chrono::DateTime<chrono::Utc>,
+    pub known_templates: Vec<madlibs::Template>,
 }
 
 fn solve_and_post(mastodon: &Mastodon, mut template: &mut madlibs::Template, acct: Option<String>) {
