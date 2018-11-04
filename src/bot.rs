@@ -57,8 +57,11 @@ fn process_mention(
     let status = notification.status.unwrap();
     let text = status.content;
     let mut template = madlibs::to_template(&text);
-    add_template_to.push(template.to_vec());
-    solve_and_post(mastodon, &mut template, Some(notification.account.acct));
+    // Ignore mentions that don't include any template words
+    if template.len() > 1 {
+        add_template_to.push(template.to_vec());
+        solve_and_post(mastodon, &mut template, Some(notification.account.acct));
+    }
 }
 
 fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<madlibs::Template>) {
