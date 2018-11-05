@@ -18,6 +18,7 @@ use self::elefren::entities::*;
 use self::rand::Rng;
 
 use std::fs::File;
+use std::collections::HashSet;
 
 #[derive(Deserialize, Serialize)]
 pub struct BotStatus {
@@ -25,13 +26,16 @@ pub struct BotStatus {
     pub known_templates: Vec<madlibs::Template>,
 }
 
-fn solve_and_post(mastodon: &Mastodon, mut template: &mut madlibs::Template, acct: Option<String>) {
+fn solve_and_post(mastodon: &Mastodon, template: &mut madlibs::Template, used_statuses: &mut HashSet<String>, acct: Option<String>) {
     let home = mastodon.get_home_timeline().expect("couldn't fetch home timeline");
     for status in home.items_iter() {
-        if status.account.acct == "madlibs" || status.content.contains("madlibs") {
+        if status.account.acct == "madlibs"
+            || status.content.contains("madlibs")
+            || used_statuses.contains(&status.id) {
             continue;
         }
-        match madlibs::reduce_template(&mut template, &status.content) {
+        used_statuses.insert(status.id);
+        match madlibs::reduce_template(template, &status.content) {
             Some(mut text) => {
                 let end = match acct {
                     Some(acct) => format!("cc @{}", acct),
@@ -52,7 +56,8 @@ fn solve_and_post(mastodon: &Mastodon, mut template: &mut madlibs::Template, acc
 fn process_mention(
         mastodon: &Mastodon,
         notification: notification::Notification,
-        add_template_to: &mut Vec<madlibs::Template>) {
+        add_template_to: &mut Vec<madlibs::Template>,
+        used_statuses: &mut HashSet<String>) {
     info!("mention from {}", notification.account.acct);
     let status = notification.status.unwrap();
     let text = status.content;
@@ -60,15 +65,15 @@ fn process_mention(
     // Ignore mentions that don't include any template words
     if template.len() > 1 {
         add_template_to.push(template.to_vec());
-        solve_and_post(mastodon, &mut template, Some(notification.account.acct));
+        solve_and_post(mastodon, &mut template, used_statuses, Some(notification.account.acct));
     }
 }
 
-fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<madlibs::Template>) {
+fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<madlibs::Template>, used_statuses: &mut HashSet<String>) {
     info!("posting random template");
     // Solve and post changes the template which we don't want, so we clone
     let mut template = rand::thread_rng().choose(templates).unwrap().clone();
-    solve_and_post(mastodon, &mut template, None);
+    solve_and_post(mastodon, &mut template, used_statuses, None);
 }
 
 fn process_follow(mastodon: &Mastodon, account: account::Account) {
@@ -104,6 +109,7 @@ fn poll_loop(mastodon: &Mastodon) {
     let sleep_time = 60; // in seconds
 
     let mut bot_status = get_status();
+    let mut used_statuses = HashSet::new();
 
     let mut next_random = chrono::DateTime::from_utc(
                                 chrono::naive::NaiveDateTime::from_timestamp(0, 0),
@@ -115,7 +121,7 @@ fn poll_loop(mastodon: &Mastodon) {
         let now = chrono::Utc::now();
         if now >= next_random {
             if !first_time {
-                post_random_madlib(&mastodon, &bot_status.known_templates);
+                post_random_madlib(&mastodon, &bot_status.known_templates, &mut used_statuses);
             }
             let next_hours = rng.gen_range(1, 24);
             next_random = now + chrono::Duration::hours(next_hours);
@@ -134,7 +140,7 @@ fn poll_loop(mastodon: &Mastodon) {
             }
 
             match noti.notification_type {
-                notification::NotificationType::Mention => process_mention(&mastodon, noti, &mut bot_status.known_templates),
+                notification::NotificationType::Mention => process_mention(&mastodon, noti, &mut bot_status.known_templates, &mut used_statuses),
                 notification::NotificationType::Follow => process_follow(&mastodon, noti.account),
                 _ => (),
             };
