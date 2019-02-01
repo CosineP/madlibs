@@ -201,6 +201,7 @@ fn str_to_pos(name: &str) -> POS {
         "verb" => POS::VB,
         "verbs" => POS::VBZ,
         "past" => POS::VBD,
+        "verbed" => POS::VBD,
         "participle" => POS::VBN,
         "verbing" => POS::VBG,
         "question" => POS::WP,
