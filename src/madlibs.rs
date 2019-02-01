@@ -160,6 +160,10 @@ pub fn reduce_template(template: &mut Template, status: &str) -> Option<String> 
         // This messiness had to happen because the borrow checker hates us
         let mut done = false;
         for template_word in template.iter_mut() {
+            debug!("{}", match template_word.pos {
+                Some(pos) => pos.to_str(),
+                None => ""
+            });
             // A placeholder matches a word found
             if template_word.is_placeholder && template_word.pos == loan_word.pos {
                 // We have found a match!
