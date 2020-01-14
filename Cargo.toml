@@ -2,15 +2,6 @@
 name = "madlibs"
 version = "0.1.0"
 authors = ["Luna <lucidlyluna@gmail.com>"]
-default-run = "madlibs"
-
-[[bin]]
-name = "madlibs"
-path = "src/main.rs"
-
-[[bin]]
-name = "cleanup"
-path = "src/cleanup.rs"
 
 [dependencies]
 elefren = { version = "0.16.0", features = ["toml"] }
