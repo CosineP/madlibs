@@ -2,6 +2,7 @@
 name = "madlibs"
 version = "0.1.0"
 authors = ["Luna <lucidlyluna@gmail.com>"]
+default-run = "madlibs"
 
 [[bin]]
 name = "madlibs"
@@ -12,8 +13,8 @@ name = "cleanup"
 path = "src/cleanup.rs"
 
 [dependencies]
-elefren = { version = "0.15.2", features = ["toml"] }
-nlp-annotations = "0.1.2"
+elefren = { version = "0.16.0", features = ["toml"] }
+#nlp-annotations = "0.1.2"
 # I am not kidding when I say toml doesn't support arrays of arrays, which is
 # necessary for serializing `madlibs::Template`s
 bincode = "1.0.1"
