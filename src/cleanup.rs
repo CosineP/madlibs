@@ -7,6 +7,7 @@ extern crate simple_logger;
 extern crate bincode;
 
 mod madlibs;
+#[allow(dead_code)]
 mod bot;
 
 use std::fs::File;

@@ -26,13 +26,16 @@ pub struct BotStatus {
     pub known_templates: Vec<madlibs::Template>,
 }
 
-fn solve_and_post(mastodon: &Mastodon, template: &mut madlibs::Template, used_statuses: &mut HashSet<String>, acct: Option<String>) {
-    let home = mastodon.get_home_timeline().expect("couldn't fetch home timeline");
+type BotError = elefren::errors::Error;
+type Result<T> = std::result::Result<T, BotError>;
+
+fn solve_and_post(mastodon: &Mastodon, template: &mut madlibs::Template, used_statuses: &mut HashSet<String>, acct: Option<String>) -> Result<()> {
+    let home = mastodon.get_home_timeline()?;
     for status in home.items_iter() {
         if status.account.acct == "madlibs"
             || status.content.contains("madlibs")
             || used_statuses.contains(&status.id) {
-            continue;
+            continue
         }
         used_statuses.insert(status.id);
         match madlibs::reduce_template(template, &status.content) {
@@ -45,19 +48,20 @@ fn solve_and_post(mastodon: &Mastodon, template: &mut madlibs::Template, used_st
                 mastodon.new_status(StatusBuilder {
                     status: text,
                     ..Default::default()
-                }).expect("could not post status");
-                break;
+                })?;
+                break
             },
             None => ()
         };
     }
+    Ok(())
 }
 
 fn process_mention(
         mastodon: &Mastodon,
         notification: notification::Notification,
         add_template_to: &mut Vec<madlibs::Template>,
-        used_statuses: &mut HashSet<String>) {
+        used_statuses: &mut HashSet<String>) -> Result<()> {
     info!("mention from {}", notification.account.acct);
     let status = notification.status.unwrap();
     let text = status.content;
@@ -65,25 +69,23 @@ fn process_mention(
     // Ignore mentions that don't include any template words
     if template.len() > 1 {
         add_template_to.push(template.to_vec());
-        solve_and_post(mastodon, &mut template, used_statuses, Some(notification.account.acct));
+        solve_and_post(mastodon, &mut template, used_statuses, Some(notification.account.acct))?;
     }
+    Ok(())
 }
 
-fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<madlibs::Template>, used_statuses: &mut HashSet<String>) {
+fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<madlibs::Template>, used_statuses: &mut HashSet<String>) -> Result<()> {
     info!("posting random template");
     // Solve and post changes the template which we don't want, so we clone
     let mut template = rand::thread_rng().choose(templates).unwrap().clone();
-    solve_and_post(mastodon, &mut template, used_statuses, None);
+    solve_and_post(mastodon, &mut template, used_statuses, None)?;
+    Ok(())
 }
 
-fn process_follow(mastodon: &Mastodon, account: account::Account) {
+fn process_follow(mastodon: &Mastodon, account: account::Account) -> Result<()> {
     info!("followed by {}", account.acct);
-    let result = mastodon
-        .follow(account.id.parse().expect("id is invalid"));
-    match result {
-        Ok(_) => (),
-        Err(err) => error!("{}", err),
-    };
+    mastodon.follow(account.id.parse().unwrap())?;
+    Ok(())
 }
 
 fn sleep(secs: u64) {
@@ -105,6 +107,46 @@ fn get_status() -> BotStatus {
     }
 }
 
+fn sync_exp_backoff<F, T>(mut call: F) -> T where
+    F: FnMut() -> Result<T> {
+    let mut time = 1;
+    loop {
+        match call() {
+            Ok(o) => return o,
+            Err(e) => {
+                error!("{}, trying again exp {}", e, time);
+                sleep(time);
+                time *= 2;
+            }
+        }
+    }
+}
+
+fn poll_notis(mastodon: &Mastodon, bot_status: &mut BotStatus, used_statuses: &mut HashSet<String>) -> Result<()> {
+    let mut last_noti_date_temp = bot_status.last_noti_date;
+    let notis = mastodon.notifications()?;
+    for noti in notis.initial_items {
+        // If we have caught up with ourselves
+        if noti.created_at <= bot_status.last_noti_date {
+            // Exit, the loop is done, persistence is done outside of loop
+            break;
+        }
+        // Only if we're on first run, getting the most recent noti
+        // otherwise our check if we've caught up would say "yes"
+        if noti.created_at > last_noti_date_temp {
+            last_noti_date_temp = noti.created_at;
+        }
+
+        match noti.notification_type {
+            notification::NotificationType::Mention => process_mention(&mastodon, noti, &mut bot_status.known_templates, used_statuses)?,
+            notification::NotificationType::Follow => process_follow(&mastodon, noti.account)?,
+            _ => (),
+        }
+    }
+    bot_status.last_noti_date = last_noti_date_temp;
+    Ok(())
+}
+
 fn poll_loop(mastodon: &Mastodon) {
     let sleep_time = 60; // in seconds
 
@@ -117,36 +159,16 @@ fn poll_loop(mastodon: &Mastodon) {
     let mut rng = rand::thread_rng();
     let mut first_time = true;
     loop {
-        let notis = mastodon.notifications().expect("couldn't fetch notis");
         let now = chrono::Utc::now();
         if now >= next_random {
             if !first_time {
-                post_random_madlib(&mastodon, &bot_status.known_templates, &mut used_statuses);
+                sync_exp_backoff(|| post_random_madlib(&mastodon, &bot_status.known_templates, &mut used_statuses));
             }
             let next_hours = rng.gen_range(1, 24);
             next_random = now + chrono::Duration::hours(next_hours);
             first_time = false;
         }
-        let mut last_noti_date_temp = bot_status.last_noti_date;
-        for noti in notis.initial_items {
-            // If we have caught up with ourselves
-            if noti.created_at <= bot_status.last_noti_date {
-                // Exit, the loop is done, persistence is done outside of loop
-                break;
-            }
-            // Only if we're on first run, getting the most recent noti
-            if noti.created_at > last_noti_date_temp {
-                last_noti_date_temp = noti.created_at;
-            }
-
-            match noti.notification_type {
-                notification::NotificationType::Mention => process_mention(&mastodon, noti, &mut bot_status.known_templates, &mut used_statuses),
-                notification::NotificationType::Follow => process_follow(&mastodon, noti.account),
-                _ => (),
-            };
-        }
-        // Now that we've finished our search, we can update our bot status
-        bot_status.last_noti_date = last_noti_date_temp;
+        sync_exp_backoff(|| poll_notis(mastodon, &mut bot_status, &mut used_statuses));
         // Serialize the bot status occasionally
         match File::create("status.bincode") {
             Ok(file) => {
@@ -166,7 +188,7 @@ pub fn run() {
         }
         Err(_) => register(),
     };
-    poll_loop(&mastodon);
+    poll_loop(&mastodon)
 }
 
 fn register() -> Mastodon {
