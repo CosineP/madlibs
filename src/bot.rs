@@ -84,7 +84,11 @@ fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<madlibs::Template>, u
 
 fn process_follow(mastodon: &Mastodon, account: account::Account) -> Result<()> {
     info!("followed by {}", account.acct);
-    mastodon.follow(account.id.parse().unwrap())?;
+    match mastodon.follow(account.id.parse().unwrap()) {
+        Ok(_) => (),
+        // TODO: i suppose we now have a reason to eventually update elefren
+        Err(e) => warn!("recieved error code after following account {}: {}; doing nothing (usually fine; elefren bug?)", account.acct, e),
+    }
     Ok(())
 }
 
@@ -107,14 +111,20 @@ fn get_status() -> BotStatus {
     }
 }
 
-fn sync_exp_backoff<F, T>(mut call: F) -> T where
+fn sync_exp_backoff<F, T>(mut call: F) where
     F: FnMut() -> Result<T> {
     let mut time = 1;
     loop {
         match call() {
-            Ok(o) => return o,
+            Ok(_) => return,
             Err(e) => {
                 error!("{}, trying again exp {}", e, time);
+                // More than two hours waiting = 4 hours total = give up
+                const CUTOFF: u64 = 60 * 60 * 2;
+                if time > CUTOFF {
+                    error!("giving up on exponential backoff");
+                    return;
+                }
                 sleep(time);
                 time *= 2;
             }

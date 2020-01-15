@@ -84,6 +84,9 @@ fn sanitize_all(status: &str) -> String {
     // Double newlines are *wrapped* in <p>s, making this a little hacky
     let re = Regex::new(r"</p>").unwrap();
     let status = re.replace_all(&status, "\n\n");
+    // Mentions and links include names which is weird
+    let re = Regex::new(r"<a.*</a.*>").unwrap();
+    let status = re.replace_all(&status, "");
     // Remove *anything else* in TRUE <> charaters, stripping html
     let re = Regex::new(r"<[^<]*>").unwrap();
     let status = re.replace_all(&status, "");
