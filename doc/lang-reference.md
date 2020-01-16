@@ -23,7 +23,7 @@ this time:
 | uh          | uh      |
 | verb        | eat     |
 | verbs       | eats    |
-| past        | ate     |
+| verbed      | ate     |
 | participle  | eaten   |
 | verbing     | eating  |
 | question    | what    |

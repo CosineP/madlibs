@@ -21,4 +21,6 @@ log = "0.4.5"
 stopwords = "0.1.0"
 llamapun = { git = "https://github.com/KWARC/llamapun" }
 rust-senna = { git = "https://github.com/jfschaefer/rust-senna" }
+bimap = "0.4.0"
+lazy_static = "1.4.0"
 

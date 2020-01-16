@@ -1,35 +1,36 @@
 // Deals with the botty aspects: polling, sending, etc
 
-extern crate elefren;
-extern crate chrono;
-extern crate toml;
-// Yes, it is worth it for both. TOML doesn't support Vec<Template>,
-// and elefren doesn't support anything but TOML
-// TODO: I could technically just serialize the credentials to bincode as well
-extern crate bincode;
-extern crate rand;
-
-use madlibs;
-
-use self::elefren::{Mastodon, MastodonClient, Registration, StatusBuilder};
-use self::elefren::helpers::cli;
-use self::elefren::helpers;
-use self::elefren::entities::*;
-use self::rand::Rng;
+use elefren::{Mastodon, MastodonClient, Registration, StatusBuilder, entities::status::Status};
+use elefren::helpers::cli;
+use elefren::helpers;
+use elefren::entities::*;
+use rand::Rng;
 
 use std::fs::File;
 use std::collections::HashSet;
+use std::collections::HashMap;
+
+use collection;
+use pos;
+
+use template::Template;
+use collection::CollectionStatus;
+use AccountID;
+
+// elefren continues to use String in future versions so this is future-aware
+type StatusID = String;
 
 #[derive(Deserialize, Serialize)]
 pub struct BotStatus {
     pub last_noti_date: chrono::DateTime<chrono::Utc>,
-    pub known_templates: Vec<madlibs::Template>,
+    pub known_templates: Vec<Template>,
+    pub collection_toots: HashMap<StatusID, CollectionStatus>,
 }
 
 type BotError = elefren::errors::Error;
 type Result<T> = std::result::Result<T, BotError>;
 
-fn solve_and_post(mastodon: &Mastodon, template: &mut madlibs::Template, used_statuses: &mut HashSet<String>, acct: Option<String>) -> Result<()> {
+fn solve_and_post(mastodon: &Mastodon, template: &mut Template, used_statuses: &mut HashSet<String>, acct: Option<String>) -> Result<()> {
     let home = mastodon.get_home_timeline()?;
     for status in home.items_iter() {
         if status.account.acct == "madlibs"
@@ -38,7 +39,7 @@ fn solve_and_post(mastodon: &Mastodon, template: &mut madlibs::Template, used_st
             continue
         }
         used_statuses.insert(status.id);
-        match madlibs::reduce_template(template, &status.content) {
+        match template.reduce(&status.content) {
             Some(mut text) => {
                 let end = match acct {
                     Some(acct) => format!("cc @{}", acct),
@@ -57,45 +58,122 @@ fn solve_and_post(mastodon: &Mastodon, template: &mut madlibs::Template, used_st
     Ok(())
 }
 
-fn process_mention(
-        mastodon: &Mastodon,
-        notification: notification::Notification,
-        add_template_to: &mut Vec<madlibs::Template>,
-        used_statuses: &mut HashSet<String>) -> Result<()> {
-    let acct = notification.account.acct;
-    info!("mention from {}", &acct);
+fn post_collection(mastodon: &Mastodon, template: &Template, acct: Option<AccountID>) -> Result<StatusID> {
+    let mut text = String::from("let's play madlibs! this one's called\n");
+    let title = match &template.title {
+        Some(title) => title,
+        None => "Untitled",
+    };
+    text.push_str(title);
+    text.push('\n');
+    for _ in 0..title.len() {
+        text.push('=');
+    }
+    text.push_str("\ni need the following words:\n");
+    for (pos, count) in template.requirements() {
+        text.push_str(&format!("{}x: ", count));
+        text.push_str(pos::pos_to_str(&pos));
+    }
+    if let Some(acct) = acct {
+        text.push_str(&format!(
+            "contribute one or many words by replying like this:
+noun: cc @{}", acct));
+    }
+    Ok(mastodon.new_status(StatusBuilder {
+        status: text,
+        ..Default::default()
+    })?.id)
+}
+
+fn process_template_mention(mastodon: &Mastodon, notification: notification::Notification, bot_status: &mut BotStatus, used_statuses: &mut HashSet<String>) -> Result<()> {
     let status = notification.status.unwrap();
-    let text = status.content;
-    let mut template = match madlibs::to_template(&text) {
+    let acct = notification.account.acct;
+    let mut template = match Template::parse(&status.content) {
         Ok(plate) => plate,
         Err(e) => {
-            // another elefren annoyance CHECK
-            let in_reply_to_id = match status.id.parse() {
-                Ok(o) => Some(o),
-                Err(e) => {
-                    warn!("foreign string id didn't parse to native u64 id: {}", e);
-                    None
-                }
-            };
-            mastodon.new_status(StatusBuilder {
-                status: format!("@{} could not parse your template: {}", acct, e),
-                visibility: Some(status.visibility),
-                in_reply_to_id,
-                ..Default::default()
-            })?;
-            // So it's an error, but we PROCESSED Ok
+            toot_parse_error(mastodon, &status, e, "template")?;
             return Ok(());
         }
     };
     // Ignore mentions that don't include any template words
-    if template.len() > 1 {
-        add_template_to.push(template.to_vec());
-        solve_and_post(mastodon, &mut template, used_statuses, Some(acct))?;
+    if template.body.len() > 1 {
+        if template.title.is_some() {
+            let toot_id = post_collection(mastodon, &template, Some(acct))?;
+            // hasn't been inserted yet so no -1
+            let plate_id = bot_status.known_templates.len();
+            bot_status.collection_toots.insert(toot_id, CollectionStatus::new(plate_id));
+        } else {
+            solve_and_post(mastodon, &mut template, used_statuses, Some(acct))?;
+        }
+        bot_status.known_templates.push(template);
     }
     Ok(())
 }
 
-fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<madlibs::Template>, used_statuses: &mut HashSet<String>) -> Result<()> {
+fn toot_parse_error<E: std::fmt::Display>(mastodon: &Mastodon, status: &Status, e: E, kind: &str) -> Result<()> {
+    // another elefren annoyance CHECK
+    let in_reply_to_id = match status.id.parse() {
+        Ok(o) => Some(o),
+        Err(e) => {
+            warn!("foreign string id didn't parse to native u64 id: {}", e);
+            None
+        }
+    };
+    mastodon.new_status(StatusBuilder {
+        status: format!("@{} could not parse your {}: {}", status.account.acct, kind, e),
+        visibility: Some(status.visibility),
+        in_reply_to_id,
+        ..Default::default()
+    })?;
+    Ok(())
+}
+
+// returns true if this WAS a valid, live collection mention, false if it wasn't
+fn process_collection_mention(mastodon: &Mastodon, notification: &notification::Notification, bot_status: &mut BotStatus) -> Result<bool> {
+    let status = notification.status.as_ref().unwrap();
+    // we can't chain if-let, (feature(let_chains) doesn't even work),
+    // returns will do the trick
+    if let Some(reply_id) = &status.in_reply_to_id {
+        if let Some(collection) = bot_status.collection_toots.get_mut(reply_id) {
+            let status = notification.status.as_ref().unwrap();
+            let resp = match collection::parse_response(&status.content) {
+                Ok(resp) => resp,
+                Err(e) => {
+                    toot_parse_error(mastodon, status, e, "response")?;
+                    return Ok(true);
+                }
+            };
+            collection.add_responses(resp);
+            match collection.check_done(&bot_status.known_templates) {
+                Some(mut text) => {
+                    text.push_str(&collection.get_participant_ats());
+                    mastodon.new_status(StatusBuilder {
+                        status: text,
+                        ..Default::default()
+                    })?;
+                }
+                // still waiting around
+                None => (),
+            }
+            return Ok(true)
+        }
+    }
+    Ok(false)
+}
+
+fn process_mention(
+        mastodon: &Mastodon,
+        notification: notification::Notification,
+        bot_status: &mut BotStatus,
+        used_statuses: &mut HashSet<String>) -> Result<()> {
+    info!("mention from {}", &notification.account.acct);
+    if !process_collection_mention(mastodon, &notification, bot_status)? {
+        process_template_mention(mastodon, notification, bot_status, used_statuses)?;
+    }
+    Ok(())
+}
+
+fn post_random_madlib(mastodon: &Mastodon, templates: &Vec<Template>, used_statuses: &mut HashSet<String>) -> Result<()> {
     info!("posting random template");
     // Solve and post changes the template which we don't want, so we clone
     let mut template = rand::thread_rng().choose(templates).unwrap().clone();
@@ -128,6 +206,7 @@ fn get_status() -> BotStatus {
                                 chrono::naive::NaiveDateTime::from_timestamp(0, 0),
                                 chrono::Utc),
             known_templates: vec![],
+            collection_toots: HashMap::new(),
         }
     }
 }
@@ -169,7 +248,7 @@ fn poll_notis(mastodon: &Mastodon, bot_status: &mut BotStatus, used_statuses: &m
         }
 
         match noti.notification_type {
-            notification::NotificationType::Mention => process_mention(&mastodon, noti, &mut bot_status.known_templates, used_statuses)?,
+            notification::NotificationType::Mention => process_mention(&mastodon, noti, bot_status, used_statuses)?,
             notification::NotificationType::Follow => process_follow(&mastodon, noti.account)?,
             _ => (),
         }

@@ -1,13 +1,8 @@
 // Deals with the botty aspects: polling, sending, etc
 
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate log;
-extern crate simple_logger;
+extern crate madlibs;
 
-mod madlibs;
-mod bot;
+use madlibs::bot;
 
 fn main() {
     simple_logger::init_with_level(log::Level::Info).unwrap();

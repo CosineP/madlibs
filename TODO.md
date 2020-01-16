@@ -38,4 +38,13 @@ cc @submitter```
 now here's we we iteratively do that:
 - MPV: 1234
 - 5 is QOL, 6 is a huge thing for our auto machine
+- copy Template into src/bin/migrate-titles.rs, then edit it and use compiler
+driven development to bring us 1+3
+    - because migrate should only have to run once, make sure you get
+    collection_toots in that schema right off the bat
+- then actually write migrate-titles
+- then write 4
+
+what we have so far:
+1234
 
