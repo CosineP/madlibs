@@ -76,8 +76,12 @@ fn post_collection(mastodon: &Mastodon, template: &Template, acct: Option<Accoun
     }
     if let Some(acct) = acct {
         text.push_str(&format!(
-            "contribute one or many words by replying like this:
-noun: cc @{}", acct));
+            "contribute one or more words by replying like this:
+noun: hegemony
+verbs: ruins
+and comment on a separate line
+
+cc @{}", acct));
     }
     Ok(mastodon.new_status(StatusBuilder {
         status: text,

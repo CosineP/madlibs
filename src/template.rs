@@ -15,8 +15,8 @@ use sanitize_all;
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct Token {
     pub text: Option<String>,
-    is_placeholder: bool,
-    pos: Option<POS>,
+    pub is_placeholder: bool,
+    pub pos: Option<POS>,
 }
 
 impl Token {
