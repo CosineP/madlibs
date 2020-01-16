@@ -151,8 +151,12 @@ impl Template {
         let mut rng = rand::thread_rng();
         rng.shuffle(&mut status);
         for loan_word in status {
-            if self.insert_placeholder(loan_word.pos.unwrap(), loan_word.text.unwrap()) {
-                break;
+            // this is actually a complicated `if` lacking good `let` combinations
+            match (loan_word.pos, loan_word.text) {
+                (Some(pos), Some(text)) if loan_word.is_placeholder => if self.insert_placeholder(pos, text) {
+                    break;
+                }
+                _ => (),
             }
         }
         self.check_done()

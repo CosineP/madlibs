@@ -14,6 +14,11 @@ what does a template look like? it pretty much just looks like this:
 
     [pronoun] was a [noun], [pronoun] was a [noun], can i be aaaanymore [adjective]~
 
+if you want to play in manual mode, so other fedizens can contribute words,
+give it a title followed by a colon:
+
+    true science fact: [noun] is stored in the [nouns]
+
 there is a [full doc](doc/lang-reference.md) that includes all correct POS
 labels. anyway, mention `@madlibs@beeping.town` with a template and it'll do
 madlibs for you!

@@ -58,38 +58,38 @@ fn solve_and_post(mastodon: &Mastodon, template: &mut Template, used_statuses: &
     Ok(())
 }
 
-fn post_collection(mastodon: &Mastodon, template: &Template, acct: Option<AccountID>) -> Result<StatusID> {
-    let mut text = String::from("let's play madlibs! this one's called\n");
+fn format_collection_toot(template: &Template, acct: Option<AccountID>) -> String {
     let title = match &template.title {
         Some(title) => title,
         None => "Untitled",
     };
-    text.push_str(title);
-    text.push('\n');
-    for _ in 0..title.len() {
-        text.push('=');
-    }
-    text.push_str("\ni need the following words:\n");
-    for (pos, count) in template.requirements() {
-        text.push_str(&format!("{}x: ", count));
-        text.push_str(pos::pos_to_str(&pos));
-    }
-    if let Some(acct) = acct {
-        text.push_str(&format!(
-            "contribute one or more words by replying like this:
-noun: hegemony
-verbs: ruins
-and comment on a separate line
+    let mut text = format!("let's play madlibs! this one's called: **{}**
 
-cc @{}", acct));
+i need the following words:
+", title);
+    for (pos, count) in template.requirements() {
+        text.push_str(&format!("\n{}x: {}", count, pos::pos_to_str(&pos)));
     }
+    text.push_str("
+
+contribute one or more words by replying like this:
+noun: hegemony
+verbs: sucks");
+    if let Some(acct) = acct {
+        text.push_str(&format!("\n\ncc @{}", acct));
+    }
+    text
+}
+
+fn post_collection(mastodon: &Mastodon, template: &Template, acct: Option<AccountID>) -> Result<StatusID> {
     Ok(mastodon.new_status(StatusBuilder {
-        status: text,
+        status: format_collection_toot(template, acct),
         ..Default::default()
     })?.id)
 }
 
 fn process_template_mention(mastodon: &Mastodon, notification: notification::Notification, bot_status: &mut BotStatus, used_statuses: &mut HashSet<String>) -> Result<()> {
+    info!("... it was a non-collection mention");
     let status = notification.status.unwrap();
     let acct = notification.account.acct;
     let mut template = match Template::parse(&status.content) {
@@ -101,11 +101,13 @@ fn process_template_mention(mastodon: &Mastodon, notification: notification::Not
     };
     // Ignore mentions that don't include any template words
     if template.body.len() > 1 {
+        info!("... with a valid template");
         if template.title.is_some() {
-            let toot_id = post_collection(mastodon, &template, Some(acct))?;
+            info!("... and a title (manual mode)");
+            let toot_id = post_collection(mastodon, &template, Some(acct.clone()))?;
             // hasn't been inserted yet so no -1
             let plate_id = bot_status.known_templates.len();
-            bot_status.collection_toots.insert(toot_id, CollectionStatus::new(plate_id));
+            bot_status.collection_toots.insert(toot_id, CollectionStatus::new(plate_id, acct));
         } else {
             solve_and_post(mastodon, &mut template, used_statuses, Some(acct))?;
         }
@@ -114,15 +116,19 @@ fn process_template_mention(mastodon: &Mastodon, notification: notification::Not
     Ok(())
 }
 
-fn toot_parse_error<E: std::fmt::Display>(mastodon: &Mastodon, status: &Status, e: E, kind: &str) -> Result<()> {
-    // another elefren annoyance CHECK
-    let in_reply_to_id = match status.id.parse() {
+fn id_or_warn(id: &str) -> Option<u64> {
+    match id.parse() {
         Ok(o) => Some(o),
         Err(e) => {
             warn!("foreign string id didn't parse to native u64 id: {}", e);
             None
         }
-    };
+    }
+}
+
+fn toot_parse_error<E: std::fmt::Display>(mastodon: &Mastodon, status: &Status, e: E, kind: &str) -> Result<()> {
+    // another elefren annoyance CHECK
+    let in_reply_to_id = id_or_warn(&status.id);
     mastodon.new_status(StatusBuilder {
         status: format!("@{} could not parse your {}: {}", status.account.acct, kind, e),
         visibility: Some(status.visibility),
@@ -139,6 +145,7 @@ fn process_collection_mention(mastodon: &Mastodon, notification: &notification::
     // returns will do the trick
     if let Some(reply_id) = &status.in_reply_to_id {
         if let Some(collection) = bot_status.collection_toots.get_mut(reply_id) {
+            info!("... it was a collection mention");
             let status = notification.status.as_ref().unwrap();
             let resp = match collection::parse_response(&status.content) {
                 Ok(resp) => resp,
@@ -148,11 +155,15 @@ fn process_collection_mention(mastodon: &Mastodon, notification: &notification::
                 }
             };
             collection.add_responses(resp);
+            collection.add_participant(notification.account.acct.clone());
             match collection.check_done(&bot_status.known_templates) {
                 Some(mut text) => {
                     text.push_str(&collection.get_participant_ats());
+                    let to_u64 = id_or_warn(reply_id);
+                    info!("... and we're done with collection. posting: {} to {:?}", text, to_u64);
                     mastodon.new_status(StatusBuilder {
                         status: text,
+                        in_reply_to_id: to_u64,
                         ..Default::default()
                     })?;
                 }

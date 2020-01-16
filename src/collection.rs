@@ -15,10 +15,12 @@ pub struct CollectionStatus {
     resolved: Vec<Response>,
 }
 impl CollectionStatus {
-    pub fn new(template_id: usize) -> Self {
+    pub fn new(template_id: usize, acct: AccountID) -> Self {
+        let mut participants = HashSet::new();
+        participants.insert(acct);
         Self {
             template_id,
-            participants: HashSet::new(),
+            participants,
             resolved: Vec::new(),
         }
     }
@@ -141,7 +143,7 @@ mod test {
     }
     #[test]
     fn comment_lines() {
-        let got = parse_response("verbs: eats, and what else, uhhhh, okay so, uh: grr");
+        let got = parse_response("<a href=aoesutnhaoesn>@madlibs</a> verbs: eats, and what else, uhhhh, okay so, uh: grr");
         let exp = vec![
             (POS::Verbs, "eats".to_string()),
             (POS::Uh, "grr".to_string()),
@@ -154,7 +156,7 @@ mod test {
         let req = Template::parse("titled: i need a [noun] another [noun] and a [verb]").unwrap();
         let templates = vec![req];
         let resps = parse_response("noun: thing, noun: table, verb: bore").unwrap();
-        let mut cs = CollectionStatus::new(0);
+        let mut cs = CollectionStatus::new(0, "cosine@anticapitalist.party".to_string());
         cs.add_responses(resps);
         let exp = "titled:\n i need a thing another table and a bore".to_string();
         assert_eq!(cs.check_done(&templates), Some(exp));
