@@ -62,14 +62,35 @@ fn process_mention(
         notification: notification::Notification,
         add_template_to: &mut Vec<madlibs::Template>,
         used_statuses: &mut HashSet<String>) -> Result<()> {
-    info!("mention from {}", notification.account.acct);
+    let acct = notification.account.acct;
+    info!("mention from {}", &acct);
     let status = notification.status.unwrap();
     let text = status.content;
-    let mut template = madlibs::to_template(&text);
+    let mut template = match madlibs::to_template(&text) {
+        Ok(plate) => plate,
+        Err(e) => {
+            // another elefren annoyance CHECK
+            let in_reply_to_id = match status.id.parse() {
+                Ok(o) => Some(o),
+                Err(e) => {
+                    warn!("foreign string id didn't parse to native u64 id: {}", e);
+                    None
+                }
+            };
+            mastodon.new_status(StatusBuilder {
+                status: format!("@{} could not parse your template: {}", acct, e),
+                visibility: Some(status.visibility),
+                in_reply_to_id,
+                ..Default::default()
+            })?;
+            // So it's an error, but we PROCESSED Ok
+            return Ok(());
+        }
+    };
     // Ignore mentions that don't include any template words
     if template.len() > 1 {
         add_template_to.push(template.to_vec());
-        solve_and_post(mastodon, &mut template, used_statuses, Some(notification.account.acct))?;
+        solve_and_post(mastodon, &mut template, used_statuses, Some(acct))?;
     }
     Ok(())
 }

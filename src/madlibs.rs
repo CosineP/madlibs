@@ -27,12 +27,32 @@ enum POSSerde {
     POUND, PADDING, UNAVAILABLE, NOT_SET,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct Token {
     pub text: Option<String>,
     is_placeholder: bool,
     #[serde(default, with = "opt_external_struct")]
     pos: Option<POS>,
+}
+
+impl Token {
+    pub fn new_text(text: String) -> Self {
+        Token {
+            text: Some(text),
+            is_placeholder: false,
+            pos: None,
+        }
+    }
+    pub fn new_str(text: &str) -> Self {
+        Token::new_text(text.to_string())
+    }
+    pub fn new_pos(pos: POS) -> Self {
+        Token {
+            text: None,
+            is_placeholder: true,
+            pos: Some(pos),
+        }
+    }
 }
 
 impl std::fmt::Debug for Token {
@@ -188,8 +208,8 @@ pub fn reduce_template(template: &mut Template, status: &str) -> Option<String> 
     }
 }
 
-fn str_to_pos(name: &str) -> POS {
-    match name.as_ref() {
+fn str_to_pos(name: &str) -> Option<POS> {
+    Some(match name.as_ref() {
         "adjective" => POS::JJ,
         "comparative" => POS::JJR,
         "superlative" => POS::JJS,
@@ -208,11 +228,33 @@ fn str_to_pos(name: &str) -> POS {
         "participle" => POS::VBN,
         "verbing" => POS::VBG,
         "question" => POS::WP,
-        _ => POS::UNAVAILABLE,
+        _ => return None,
+    })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ParseError {
+    MismatchedBracket,
+    NestedBrackets,
+    UnknownPOS(String),
+}
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use self::ParseError::*;
+        match self {
+            MismatchedBracket => write!(f, "brackets[] did not match up 1:1"),
+            NestedBrackets => write!(f, "nesting [brackets [like this]] is not allowed"),
+            UnknownPOS(given) => write!(f, "unknown part of speech {}", given),
+        }
+    }
+}
+impl std::error::Error for ParseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
     }
 }
 
-pub fn to_template(status: &str) -> Template {
+pub fn to_template(status: &str) -> Result<Template, ParseError> {
     let status = sanitize_template(status);
 
     const OPEN: char = '[';
@@ -223,24 +265,24 @@ pub fn to_template(status: &str) -> Template {
     for c in status.chars() {
         match c {
             OPEN => {
-                assert!(!in_brace, "no nesting");
+                if in_brace {
+                    return Err(ParseError::NestedBrackets);
+                }
                 in_brace = true;
-                let token = Token {
-                    text: Some(chunk),
-                    is_placeholder: false,
-                    pos: None,
-                };
+                let token = Token::new_text(chunk);
                 template.push(token);
                 chunk = String::new();
             },
             CLOSE => {
-                assert!(in_brace, "could not match ] to [");
+                if !in_brace {
+                    return Err(ParseError::MismatchedBracket);
+                }
                 in_brace = false;
-                let token = Token {
-                    text: None,
-                    is_placeholder: true,
-                    pos: Some(str_to_pos(&chunk)),
+                let pos = match str_to_pos(&chunk) {
+                    Some(p) => p,
+                    None => return Err(ParseError::UnknownPOS(chunk)),
                 };
+                let token = Token::new_pos(pos);
                 template.push(token);
                 chunk = String::new();
             },
@@ -250,16 +292,31 @@ pub fn to_template(status: &str) -> Template {
         };
     }
     if in_brace {
-        panic!("could not match [ to its ] before toot ended");
+        return Err(ParseError::MismatchedBracket);
     }
     // Always end with a non-placeholder representing the end, or at least ""
-    let token = Token {
-        text: Some(chunk),
-        is_placeholder: false,
-        pos: None,
-    };
+    let token = Token::new_text(chunk);
     template.push(token);
 
-    template
+    Ok(template)
+}
+
+#[cfg(test)]
+mod test {
+    use super::{POS, Token, to_template};
+    #[test]
+    fn sanity_templates() {
+        let got = to_template("my [noun] [verbs] all the boys to the yard and [pronoun] like");
+        let exp = vec![
+            Token::new_str("my "),
+            Token::new_pos(POS::NN),
+            Token::new_str(" "),
+            Token::new_pos(POS::VBZ),
+            Token::new_str(" all the boys to the yard and "),
+            Token::new_pos(POS::PRP),
+            Token::new_str(" like"),
+        ];
+        assert_eq!(got, Ok(exp));
+    }
 }
 
