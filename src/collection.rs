@@ -6,7 +6,7 @@ use template::Template;
 
 pub type Response = (POS, String);
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct CollectionStatus {
     // template is not partially resolved, because it's re-used...
     template_id: usize,
